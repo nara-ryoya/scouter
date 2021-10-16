@@ -8,8 +8,7 @@ import random
 
 cap = cv2.VideoCapture(0)
 
-height = 300
-width = 300
+scale = 1.0
 
 #顔検出のカスケード分類器を生成※環境によりパスが変わります
 cascadeFile = 'haarcascade_frontalface_alt2.xml'
@@ -18,36 +17,44 @@ cascade = cv2.CascadeClassifier(cascadeFile)
 #スカウターっぽく背景を緑色にするためのマスク画像
 mh = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 mw = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-mask = np.full((mh, mw, 3), (70, 110, 0), dtype=np.uint8)
+height = int(mh / scale)
+width = int(mw / scale)
+mask = np.full((height, width, 3), (70, 110, 0), dtype=np.uint8)
+
 
 #戦闘力（乱数）
 fight = random.randint(5, 530000)
 
-#顔のモザイク処理
-def mosaic(src, ratio=0.025):
-    small = cv2.resize(src, None, fx=ratio, fy=ratio, interpolation=cv2.INTER_NEAREST)
-    return cv2.resize(small, src.shape[:2][::-1], interpolation=cv2.INTER_NEAREST)
-def mosaic_area(src, x, y, width, height, ratio=0.025):
-    dst = src.copy()
-    dst[y:y + height, x:x + width] = mosaic(dst[y:y + height, x:x + width], ratio)
-    return dst
-    
-#フレーム描画
+# print(cap.size())
+# print(mask.shape)
+
+def init():
+    glutInitWindowPosition(0, 0)
+    #glutInitWindowSizeは(w, h)の順番
+    # glutInitWindowSize(int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)))
+    glutInitWindowSize(width, height)
+    glutInit(sys.argv)
+    glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE)
+    glutCreateWindow("Scouter")
+
 def draw():
     _, curFrame = cap.read()
 
+    # gray = np.full((height, width, 1), 0, dtype=np.uint8)
+
+
     #顔検出
-    # cv2.resize(curFrame, (height, width))
-    # gray = cv2.cvtColor(curFrame, cv2.COLOR_BGRA2GRAY, gray)
-    faceRect = cascade.detectMultiScale(curFrame)
+    # curFrame = cv2.resize(curFrame, (height, width), interpolation=cv2.INTER_NEAREST)
+    gray = cv2.cvtColor(curFrame, cv2.COLOR_BGRA2GRAY)
+    faceRect = cascade.detectMultiScale(gray)
 
     # 全体を緑色っぽく
     curFrame = cv2.addWeighted(curFrame, 0.8, mask , 0.9, 0)
 
+    # print(len(faceRect))
     if len(faceRect) > 0:
         for fx, fy, fw, fh in faceRect:
             #顔にモザイク
-            curFrame = mosaic_area(curFrame, fx, fy, fw, fh)
 
             #戦闘力表示
             textColor = (0, 244, 243)
@@ -115,11 +122,7 @@ def keyboard(key, x, y):
         exit()
 
 if __name__ == "__main__":
-    glutInitWindowPosition(0, 0)
-    glutInitWindowSize(int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)))
-    glutInit(sys.argv)
-    glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE)
-    glutCreateWindow("Camera")
+    init()
     glutDisplayFunc(draw)
     glutKeyboardFunc(keyboard)
     glutIdleFunc(idle)
