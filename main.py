@@ -6,15 +6,20 @@ import numpy as np
 from PIL import ImageFont, ImageDraw, Image
 import random
 
+
+# グローバル領域で各種変数を定義
+height = 0
+width = 0
 cap = cv2.VideoCapture(0)
+if (not cap.isOpened()):
+    print("cannot open the camera")
+    exit()
 
-scale = 1.0
-
-#顔検出のカスケード分類器を生成※環境によりパスが変わります
 cascadeFile = 'haarcascade_frontalface_alt2.xml'
 cascade = cv2.CascadeClassifier(cascadeFile)
 
-#スカウターっぽく背景を緑色にするためのマスク画像
+scale = 1
+
 mh = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 mw = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
 height = int(mh / scale)
@@ -25,8 +30,6 @@ mask = np.full((height, width, 3), (70, 110, 0), dtype=np.uint8)
 #戦闘力（乱数）
 fight = random.randint(5, 530000)
 
-# print(cap.size())
-# print(mask.shape)
 
 def init():
     glutInitWindowPosition(0, 0)
@@ -37,21 +40,9 @@ def init():
     glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE)
     glutCreateWindow("Scouter")
 
-def draw():
-    _, curFrame = cap.read()
-
-    # gray = np.full((height, width, 1), 0, dtype=np.uint8)
-
-
-    #顔検出
-    # curFrame = cv2.resize(curFrame, (height, width), interpolation=cv2.INTER_NEAREST)
+def detect_people(curFrame):
     gray = cv2.cvtColor(curFrame, cv2.COLOR_BGRA2GRAY)
     faceRect = cascade.detectMultiScale(gray)
-
-    # 全体を緑色っぽく
-    curFrame = cv2.addWeighted(curFrame, 0.8, mask , 0.9, 0)
-
-    # print(len(faceRect))
     if len(faceRect) > 0:
         for fx, fy, fw, fh in faceRect:
             #顔にモザイク
@@ -90,6 +81,13 @@ def draw():
             p3 = (int(fx + fw + 95), int(fy + (fh * 0.5) + 60))
             triangle = np.array([p1, p2, p3])
             cv2.drawContours(curFrame, [triangle], 0, textColor, -1)
+    return curFrame
+
+def draw():
+    _, curFrame = cap.read()
+
+    curFrame = detect_people(curFrame)
+    curFrame = cv2.addWeighted(curFrame, 0.8, mask , 0.9, 0)
 
     #フレーム描画
     curFrame = cv2.cvtColor(curFrame, cv2.COLOR_BGR2RGB)
