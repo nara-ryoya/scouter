@@ -37,36 +37,28 @@ fight = random.randint(5, 530000)
 
 loop_flg = True
 
-def main():
+class FaceThread(threading.Thread):
+	def __init__(self):
+		super(FaceThread, self).__init__()
 
-    while loop_flg:
-        capture()
-        detect_person_and_draw()
-        k = cv2.waitKey(10)
-        #Escキー or'q' を押されたら終了
-        if k == 27 or k == ord('q'):
-            break
-    cap.release()
+	def run(self):
+            frame = captured_image.get()
 
-def capture():
-    ret, frame = cap.read()
-    if not ret:
-        global loop_flg
-        loop_flg = False
-    captured_image.put(frame)
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-def detect_person_and_draw():
-    if captured_image:
-        frame = captured_image.get()
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGRA2GRAY)
-        faceRect = cascade.detectMultiScale(gray)
-        frame = cv2.addWeighted(frame, 0.8, mask, 0.9, 0)
-        if len(faceRect) > 0:
-            for fx, fy, fw, fh in faceRect:
+            faces = cascade.detectMultiScale(
+                gray,
+                minSize=(height // 10, width // 10)
+            )
+
+            tmp = cv2.addWeighted(frame, 0.8, mask, 0.9, 0).copy()
+
+            if len(faces) > 0:
+                fx, fy, fw, fh = faces[0][0], faces[0][1], faces[0][2], faces[0][3]
                 textColor = (0, 244, 243)
                 fontSize = 64
                 font = ImageFont.FreeTypeFont('DSEG7Modern-Light.ttf', fontSize)
-                img_pil = Image.fromarray(frame)
+                img_pil = Image.fromarray(tmp)
                 draw = ImageDraw.Draw(img_pil)
                 x = fx + (fw / 2) - (font.getsize('FIGHT')[0] / 2)
                 y = fy - (fontSize * 1.5)
@@ -74,30 +66,51 @@ def detect_person_and_draw():
                 x = fx + (fw / 2) - (font.getsize(str(fight))[0] / 2)
                 y = fy - (fontSize * 0.5)
                 draw.text((x, y), str(fight), font = font, fill = textColor)
-                frame = np.array(img_pil)
+                tmp = np.array(img_pil)
 
                 #真ん中三角
                 p1 = (int(fx + (fw / 2)), int(fy + (fh * 1.0)))
                 p2 = (int(fx + (fw / 2) - 40), int(fy + (fh * 1.0) + 60))
                 p3 = (int(fx + (fw / 2) + 40), int(fy + (fh * 1.0) + 60))
                 triangle = np.array([p1, p2, p3])
-                cv2.drawContours(frame, [triangle], 0, textColor, -1)
+                cv2.drawContours(tmp, [triangle], 0, textColor, -1)
 
                 #左三角
                 p1 = (int(fx - 35)), int(fy + (fh * 0.5) + 30)
                 p2 = (int(fx - 95), int(fy + (fh * 0.5)))
                 p3 = (int(fx - 95), int(fy + (fh * 0.5) + 60))
                 triangle = np.array([p1, p2, p3])
-                cv2.drawContours(frame, [triangle], 0, textColor, -1)
+                cv2.drawContours(tmp, [triangle], 0, textColor, -1)
 
                 #右三角
                 p1 = (int(fx + fw + 35)), int(fy + (fh * 0.5) + 30)
                 p2 = (int(fx + fw + 95), int(fy + (fh * 0.5)))
                 p3 = (int(fx + fw + 95), int(fy + (fh * 0.5) + 60))
                 triangle = np.array([p1, p2, p3])
-                cv2.drawContours(frame, [triangle], 0, textColor, -1)
+                cv2.drawContours(tmp, [triangle], 0, textColor, -1)
 
-        cv2.imshow("scouter", frame)
+            frame = tmp
+            # cv2.imshow("scouter", frame)
+            processed_image.put(frame)
+
+def main():
+
+    while loop_flg:
+        ret, frame = cap.read()
+        if not ret:
+            break
+        captured_image.put(frame)
+        if(threading.activeCount() == 1):
+            th = FaceThread()
+            th.start()
+        if not (processed_image.empty()):
+            res = processed_image.get()
+            cv2.imshow("scouter", res)
+
+        k = cv2.waitKey(10)
+        if k == 27 or k == ord('q'):
+            break
+    cap.release()
 
 if __name__ == "__main__":
     main()
