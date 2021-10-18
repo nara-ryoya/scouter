@@ -7,9 +7,8 @@ import threading
 from imutils import face_utils
 import time
 import signal
-
+import random
 import math
-
 
 
 # グローバル領域で各種変数を定義
@@ -47,6 +46,8 @@ rec_mode = False
 
 arg = 0
 
+font_path = "DSEG7Modern-Light.ttf"
+
 
 class FaceThread(threading.Thread):
 	def __init__(self, frame):
@@ -68,16 +69,20 @@ class FaceThread(threading.Thread):
 
             global rec_mode
 
+            textColor = (0, 244, 243)
+
         
 
-            if len(faces) > 0:
+            if len(faces) == 1:
                 for fx, fy, fw, fh in faces:
+
+                    global arg
+
                     center_x = fx + fw // 2
                     center_y = fy + fh // 2
                     center = (center_x, center_y)
                     radius =  int((((fw//2) * (fw//2) + (fh//2) * (fh//2)) ** 0.5) * 0.7)
                     # cv2.rectangle(tmp, (fx, fy), (fx + fw, fy + fh), (0, 255, 255), 2)
-                    textColor = (0, 244, 243)
 
                     #顔のランドマークの取得
         
@@ -122,38 +127,59 @@ class FaceThread(threading.Thread):
                         
                         if len(face_landmarks) != 0:
                             # cv2.rectangle(tmp, (fx, fy), (fx + fw, fy + fh), (0, 255, 255), 2)
-                            global arg
-                            cv2.ellipse(tmp, (center_x, center_y), (radius, radius), angle=0, startAngle=arg, endAngle=40+arg, color=(255, 255, 255), thickness=7)
-                            # print(arg)
-                            arg += 5
+                            if arg < 360:
+                                cv2.ellipse(tmp, (center_x, center_y), (radius, radius), angle=0, startAngle=arg, endAngle=40+arg, color=textColor, thickness=7)
+                            else:
+                                cv2.ellipse(tmp, (center_x, center_y), (radius, radius), angle=0, startAngle=0, endAngle=360, color=textColor, thickness=7)
+                            arg += 10
+                            
 
-                            strongness = 53000
-
-
-                            fontSize = fh//6
-                            font = ImageFont.FreeTypeFont('DSEG7Modern-Light.ttf', fontSize)
                             word = "status"
+                            strongness = random.randint(0, 999999)
+                            fontSize = fh//6
+                            font = ImageFont.FreeTypeFont(font_path, fontSize)
+
+                            if arg >= 360:
+                                strongness = 53000
+
                             img_pil = Image.fromarray(tmp)
                             draw = ImageDraw.Draw(img_pil)
                             x = fx + (fw / 2) - (font.getsize(word)[0] / 2)
-                            y = fy - (fontSize * 1.5)
+                            y = fy - int(fontSize)
+                            y = max(y, 0)
+                            draw.text((x, y - fh // 2), word, font = font, fill = textColor)
 
-                            draw.text((x, y - 30), word, font = font, fill = textColor)
                             x = fx + (fw / 2) - (font.getsize(str(strongness))[0] / 2)
-                            y = fy - (fontSize * 0.5)
+                            y +=  fy - int(fontSize * 3)
+                            y = max(y, 0)
                             draw.text((x, y), str(strongness), font = font, fill = textColor)
                             tmp = np.array(img_pil)
-                        
                         else:
-                            arg = 0
-                            # global rec_mode
-                            rec_mode = False
-                            #360度回らなかったら矯正終了する
+                            if arg == 0:
+                        
+            else:
+                text = "cannot find a face"
+                if len(faces) > 1:
+                    text = "cannot calculate the strongness of multipe soldier simultaneously"
+                
+                fontSize =  20
+                font = ImageFont.FreeTypeFont(font_path, fontSize)
+                arg = 0
+                # rec_mode = False
+                img_pil = Image.fromarray(tmp)
+                draw = ImageDraw.Draw(img_pil)
+                x = width // 2 - (font.getsize(text)[0] / 2)
+                y = height // 2
+                draw.text((x, y), text, font = font, fill = textColor)
+                tmp = np.array(img_pil)
+                #360度回らなかったら矯正終了する
+                    
 
 
             global res,catched_frame
             res = tmp
             catched_frame = tmp
+
 
 
 def main():
@@ -162,7 +188,7 @@ def main():
 
     while loop_flg:
         global arg
-        if arg == 360:
+        if arg == 540:
             rec_mode = False
             arg = 0
         ret, frame = cap.read()
@@ -179,8 +205,7 @@ def main():
         if k == ord('r'):
             rec_mode = not rec_mode
             if (rec_mode):
-                arg = 0
-        
+                arg = 0     
         if (rec_mode):
             cv2.imshow("scouter", catched_frame)
         else:
