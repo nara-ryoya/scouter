@@ -23,8 +23,6 @@ cascade = cv2.CascadeClassifier(cascadeFile)
 face_part_data = "shape_predictor_68_face_landmarks.dat"
 face_parts_detector = dlib.shape_predictor(face_part_data)
 
-fontSize = 64
-font = ImageFont.FreeTypeFont('DSEG7Modern-Light.ttf', fontSize)
 
 scale = 1
 
@@ -67,14 +65,17 @@ class FaceThread(threading.Thread):
                     center_x = fx + fw // 2
                     center_y = fy + fh // 2
                     center = (center_x, center_y)
-                    cv2.rectangle(tmp, (fx, fy), (fx + fw, fy + fh), (0, 255, 255), 2)
+                    # cv2.rectangle(tmp, (fx, fy), (fx + fw, fy + fh), (0, 255, 255), 2)
                     textColor = (0, 244, 243)
 
+                    fontSize = fh//6
+                    font = ImageFont.FreeTypeFont('DSEG7Modern-Light.ttf', fontSize)
                     word = "status"
                     img_pil = Image.fromarray(tmp)
                     draw = ImageDraw.Draw(img_pil)
                     x = fx + (fw / 2) - (font.getsize(word)[0] / 2)
                     y = fy - (fontSize * 1.5)
+
                     draw.text((x, y - 30), word, font = font, fill = textColor)
                     x = fx + (fw / 2) - (font.getsize(str(fight))[0] / 2)
                     y = fy - (fontSize * 0.5)
@@ -83,8 +84,8 @@ class FaceThread(threading.Thread):
 
                     #上の三角
                     p1 = (center_x, fy)
-                    p2 = (center_x - fw//10, fy + fh//10)
-                    p3 = (center_x + fw//10, fy + fh//10)
+                    p2 = (center_x - fw//10, fy - fh//10)
+                    p3 = (center_x + fw//10, fy - fh//10)
                     triangle = np.array([p1, p2, p3])
                     cv2.drawContours(tmp, [triangle], 0, textColor, -1)
 
@@ -96,16 +97,16 @@ class FaceThread(threading.Thread):
                     cv2.drawContours(tmp, [triangle], 0, textColor, -1)
 
                     #左の三角
-                    p1 = (int(fx - 35)), int(fy + (fh * 0.5) + 30)
-                    p2 = (int(fx - 95), int(fy + (fh * 0.5)))
-                    p3 = (int(fx - 95), int(fy + (fh * 0.5) + 60))
+                    p1 = (int(fx - fw//12)), int(fy + (fh * 0.5) + fh//12)
+                    p2 = (int(fx - fw//5), int(fy + (fh * 0.5)))
+                    p3 = (int(fx - fw//5), int(fy + (fh * 0.5) + fh//6))
                     triangle = np.array([p1, p2, p3])
                     cv2.drawContours(tmp, [triangle], 0, textColor, -1)
 
                     #右の三角
-                    p1 = (int(fx + fw + 35)), int(fy + (fh * 0.5) + 30)
-                    p2 = (int(fx + fw + 95), int(fy + (fh * 0.5)))
-                    p3 = (int(fx + fw + 95), int(fy + (fh * 0.5) + 60))
+                    p1 = (int(fx + fw + fw//12)), int(fy + (fh * 0.5) + fh//12)
+                    p2 = (int(fx + fw + fw//5), int(fy + (fh * 0.5)))
+                    p3 = (int(fx + fw + fw//5), int(fy + (fh * 0.5) + fh//6))
                     triangle = np.array([p1, p2, p3])
                     cv2.drawContours(tmp, [triangle], 0, textColor, -1)
 
@@ -118,6 +119,9 @@ class FaceThread(threading.Thread):
                     for i, ((x, y)) in enumerate(face_landmarks[:]):
                         cv2.circle(tmp, (x, y), 1, (0, 255, 0), -1)
                         cv2.putText(tmp, str(i), (x + 2, y - 2), cv2.FONT_HERSHEY_SIMPLEX, 0.3, (0, 255, 0), 1)
+                    
+                    if len(face_landmarks) != 0:
+                        cv2.rectangle(tmp, (fx, fy), (fx + fw, fy + fh), (0, 255, 255), 2)
 
             global res
             res = tmp
@@ -125,7 +129,6 @@ class FaceThread(threading.Thread):
 def main():
 
     while loop_flg:
-        global captured_image, processed_image
         ret, frame = cap.read()
         if not ret:
             continue
@@ -134,14 +137,11 @@ def main():
             th.start()
 
         cv2.imshow("scouter", res)
-        
-        # if (captured_image.qsize() - processed_image.qsize() >= 10):
-        #     captured_image = queue.Queue()
-        #     processed_image = queue.Queue()
 
         k = cv2.waitKey(10)
         if k == 27 or k == ord('q'):
             break
+
     cap.release()
 
 if __name__ == "__main__":
