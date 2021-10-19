@@ -10,11 +10,14 @@ import signal
 import random
 import math
 
+from playsound import playsound
+
+
 
 # グローバル領域で各種変数を定義
 height = 0
 width = 0
-cap = cv2.VideoCapture(1)
+cap = cv2.VideoCapture(0)
 if (not cap.isOpened()):
     print("cannot open the camera")
     exit()
@@ -52,6 +55,10 @@ font_path = "DSEG7Modern-Light.ttf"
 
 strongness_list = [0]
 
+sound_file = "sound_effect.wav"
+
+playsound(sound_file)
+
 def distance(p1, p2):
     return ((p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2) ** 0.5
 
@@ -63,7 +70,9 @@ class FaceThread(threading.Thread):
             self.fight = 0
             self.fontSize = 40
             self.strongness = -1
-            self.speed = 15
+            self.speed = 10
+            self.alpha = 10000.0
+            self.beta = 1.0
 
 	def run(self):
             frame = self._frame
@@ -138,8 +147,6 @@ class FaceThread(threading.Thread):
                             #     cv2.putText(tmp, str(i), (x + 2, y - 2), cv2.FONT_HERSHEY_SIMPLEX, 0.3, (0, 255, 0), 1)
                             
                             if len(face_landmarks) != 0:
-                                alpha = 1000000.0
-                                beta = 1.0
                                 cv2.ellipse(tmp, (center_x, center_y), (radius, radius), angle=0, startAngle=arg, endAngle=40+arg, color=textColor, thickness=7)
                                 eye_right_w = distance(face_landmarks[36], face_landmarks[39])
                                 eye_right_h =  (distance(face_landmarks[37], face_landmarks[41]) + distance(face_landmarks[38], face_landmarks[40])) / 2
@@ -147,11 +154,11 @@ class FaceThread(threading.Thread):
                                 eye_left_h = (distance(face_landmarks[43], face_landmarks[47]) + distance(face_landmarks[44], face_landmarks[46])) // 2
                                 eye_right_ratio = eye_right_h / eye_right_w
                                 eye_left_ratio = eye_left_h / eye_left_w
-                                eye_ratio = alpha * (eye_left_ratio + eye_right_ratio) / 2
+                                eye_ratio = self.alpha * (eye_left_ratio + eye_right_ratio) / 2
 
                                 mouth_w = distance(face_landmarks[48], face_landmarks[54])
                                 mouth_h = (face_landmarks[51][1] + face_landmarks[57][1] - face_landmarks[48][1] - face_landmarks[54][1]) / 2
-                                mouth_ratio = alpha * mouth_h / mouth_w
+                                mouth_ratio = self.alpha * mouth_h / mouth_w
 
                                 strongness_list.append(int(mouth_ratio + eye_ratio))
                                 
@@ -177,15 +184,16 @@ class FaceThread(threading.Thread):
 
                                 arg += self.speed
 
-                else:
-                    arg = 0                
+                # else:
+                #     arg = 0                
                             
             else:
                 if self.strongness == -1:
-                    self.strongness = sum(strongness_list) // len(strongness_list)
+                    self.strongness = int(10 ** ( (sum(strongness_list) * 10/ (self.alpha * len(strongness_list)))))
                 
                 if self.strongness >= 530000:
                     tmp
+                # print(sum(strongness_list) // (len(strongness_list)))
                 word = "complete!".upper()
                 img_pil = Image.fromarray(tmp)
                 draw = ImageDraw.Draw(img_pil)
