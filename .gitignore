@@ -3,3 +3,5 @@ cv_dlib/
 .DS_Store
 fonts-DSEG_v046
 github_token.txt
+ffmpeg/
+*.bz2
