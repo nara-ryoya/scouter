@@ -9,10 +9,9 @@ import time
 import signal
 import random
 import math
+import subprocess
 
-from playsound import playsound
-
-
+import simpleaudio
 
 # グローバル領域で各種変数を定義
 height = 0
@@ -55,9 +54,29 @@ font_path = "DSEG7Modern-Light.ttf"
 
 strongness_list = [0]
 
-sound_file = "sound_effect.wav"
+roop_sound_file = "roop_music.wav"
+end_sound_file = "end_music.wav"
 
-playsound(sound_file)
+roop_sound_obj = simpleaudio.WaveObject.from_wave_file("roop_music.wav")
+end_sound_obj = simpleaudio.WaveObject.from_wave_file("end_music.wav")
+
+is_roop_sound_played = False
+
+roop_sound_play_obj = roop_sound_obj.play()
+roop_sound_play_obj.stop()
+
+def roop_sound():
+    global roop_sound_play_obj
+    print('trigger')
+    is_roop_sound_played = True
+    roop_sound_play_obj = roop_sound_obj.play()
+    is_roop_sound_played = False
+
+def stop_roop_sound():
+    global roop_sound_play_obj
+    if roop_sound_play_obj.is_playing():
+        roop_sound_play_obj.stop()
+
 
 def distance(p1, p2):
     return ((p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2) ** 0.5
@@ -96,6 +115,11 @@ class FaceThread(threading.Thread):
                     gray,
                     minSize=(height // 10, width // 10)
                 )
+                # if (threading.activeCount() == 2):
+                #     roop_music = threading.Thread(target=roop_sound)
+                #     roop_music.setDaemon(True)
+                #     roop_music.start()
+
                 if len(faces) == 1:
                     for fx, fy, fw, fh in faces:
 
@@ -183,11 +207,13 @@ class FaceThread(threading.Thread):
                                 tmp = np.array(img_pil)
 
                                 arg += self.speed
-
-                # else:
-                #     arg = 0                
+            
                             
             else:
+                if arg - self.speed < 360:
+                    end_sound_obj.play()
+                    
+                stop_roop_sound()
                 if self.strongness == -1:
                     self.strongness = int(10 ** ( (sum(strongness_list) * 10/ (self.alpha * len(strongness_list)))))
                 
@@ -222,6 +248,7 @@ def main():
     global rec_mode, catched_frame
 
     while loop_flg:
+        rec_pre_mode = rec_mode
         global arg, strongness_list
         if arg >= 540:
             rec_mode = False
@@ -233,6 +260,15 @@ def main():
         if(threading.activeCount() == 1):
             th = FaceThread(frame)
             th.start()
+        
+        if rec_mode and threading.activeCount() == 2 and not roop_sound_play_obj.is_playing() and arg < 360:
+            roop_sound_thread = threading.Thread(target=roop_sound)
+            roop_sound_thread.setDaemon(True)
+            roop_sound_thread.start()
+
+        
+
+
 
         k = cv2.waitKey(10)
         if k == 27 or k == ord('q'):
@@ -241,10 +277,12 @@ def main():
         if k == ord('r'):
             rec_mode = not rec_mode
             if (rec_mode):
-                arg = 0     
+                arg = 0
+        
         if (rec_mode):
             cv2.imshow("scouter", catched_frame)
         else:
+            stop_roop_sound()
             cv2.imshow("scouter", res); 
 
     cap.release()
