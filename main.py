@@ -13,61 +13,59 @@ import subprocess
 
 import simpleaudio
 
+#諸々のファイル
+cascadeFile = 'haarcascade_frontalface_alt2.xml'
+face_part_data = "shape_predictor_68_face_landmarks.dat"
+font_path = "DSEG7Modern-Light.ttf"
+roop_sound_file = "roop_music.wav"
+end_sound_file = "end_music.wav"
+
 # グローバル領域で各種変数を定義
-height = 0
-width = 0
+
+#カメラのキャプチャ
 cap = cv2.VideoCapture(0)
 if (not cap.isOpened()):
     print("cannot open the camera")
     exit()
 
-cascadeFile = 'haarcascade_frontalface_alt2.xml'
-cascade = cv2.CascadeClassifier(cascadeFile)
-
-
-face_part_data = "shape_predictor_68_face_landmarks.dat"
-face_parts_detector = dlib.shape_predictor(face_part_data)
-
-
+#画面の大きさの定義
 scale = 1
-
 mh = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 mw = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
 height = int(mh / scale)
 width = int(mw / scale)
-mask = np.full((height, width, 3), (70, 110, 0), dtype=np.uint8)
 
+#緑色にマスクするための画面
+mask = np.full((height, width, 3), (70, 110, 0), dtype=np.uint8)
+#赤色にマスクするための画面
 danger_mask = np.full((height, width, 3), (70, 110, 0), dtype=np.uint8)
 
+#cascade分類器(顔の判定)
+cascade = cv2.CascadeClassifier(cascadeFile)
+#顔のランドマークの判定器
+face_parts_detector = dlib.shape_predictor(face_part_data)
+
+#マスク・検出・描画などの処理した後の画面
 res = np.zeros((height, width, 3), dtype=np.uint8)
 catched_frame = res
 
-detector = dlib.get_frontal_face_detector()
+loop_flg = True #loopを続けるかどうかを制御するためのbool変数
+rec_mode = False #rec_mode=Trueのときは描画を行う
+arg = 0 #arg < 360のとき顔認識を行い、arg<540のとき描画を行う
+is_roop_sound_played = False #計測中の効果音を流すかどうかを制御するためのbool変数
 
-loop_flg = True
+strongness_list = [0] #目の開き具合、口の下がり具合で判定する
 
-rec_mode = False
+#効果音のオブジェクト
+roop_sound_obj = simpleaudio.WaveObject.from_wave_file(roop_sound_file)
+end_sound_obj = simpleaudio.WaveObject.from_wave_file(end_sound_file)
 
-arg = 0
-
-font_path = "DSEG7Modern-Light.ttf"
-
-strongness_list = [0]
-
-roop_sound_file = "roop_music.wav"
-end_sound_file = "end_music.wav"
-
-roop_sound_obj = simpleaudio.WaveObject.from_wave_file("roop_music.wav")
-end_sound_obj = simpleaudio.WaveObject.from_wave_file("end_music.wav")
-
-is_roop_sound_played = False
-
+#計測中の効果音の再生オブジェクト、すべての関数から止められるようにグローバル領域で定義
 roop_sound_play_obj = roop_sound_obj.play()
 roop_sound_play_obj.stop()
 
 def roop_sound():
     global roop_sound_play_obj
-    print('trigger')
     is_roop_sound_played = True
     roop_sound_play_obj = roop_sound_obj.play()
     is_roop_sound_played = False
@@ -115,10 +113,11 @@ class FaceThread(threading.Thread):
                     gray,
                     minSize=(height // 10, width // 10)
                 )
-                # if (threading.activeCount() == 2):
-                #     roop_music = threading.Thread(target=roop_sound)
-                #     roop_music.setDaemon(True)
-                #     roop_music.start()
+
+                if rec_mode:              #計測中はグリッド線を引く
+                    tmp[:height:height // 20, :, 1:] = 240
+                    tmp[:, :width:width // 20, 1:] = 240
+
 
                 if len(faces) == 1:
                     for fx, fy, fw, fh in faces:
@@ -127,7 +126,6 @@ class FaceThread(threading.Thread):
                         center_y = fy + fh // 2
                         center = (center_x, center_y)
                         radius =  int((((fw//2) * (fw//2) + (fh//2) * (fh//2)) ** 0.5) * 0.7)
-                        # cv2.rectangle(tmp, (fx, fy), (fx + fw, fy + fh), (0, 255, 255), 2)
 
                         #顔のランドマークの取得
             
@@ -190,10 +188,6 @@ class FaceThread(threading.Thread):
                                 word = "calculating...".upper()
                                 self.strongness = random.randint(0, 999999)
 
-                                #計測中はグリッド線を引く
-                                tmp[:height:height // 20, :, 1:] = 240
-                                tmp[:, :width:width // 20, 1:] = 240
-
                                 img_pil = Image.fromarray(tmp)
                                 draw = ImageDraw.Draw(img_pil)
                                 x = width//2 - (font.getsize(word)[0] // 2)
@@ -219,7 +213,6 @@ class FaceThread(threading.Thread):
                 
                 if self.strongness >= 530000:
                     tmp
-                # print(sum(strongness_list) // (len(strongness_list)))
                 word = "complete!".upper()
                 img_pil = Image.fromarray(tmp)
                 draw = ImageDraw.Draw(img_pil)
@@ -265,10 +258,6 @@ def main():
             roop_sound_thread = threading.Thread(target=roop_sound)
             roop_sound_thread.setDaemon(True)
             roop_sound_thread.start()
-
-        
-
-
 
         k = cv2.waitKey(10)
         if k == 27 or k == ord('q'):
