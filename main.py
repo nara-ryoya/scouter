@@ -19,6 +19,7 @@ face_part_data = "shape_predictor_68_face_landmarks.dat"
 font_path = "DSEG7Modern-Light.ttf"
 roop_sound_file = "roop_music.wav"
 end_sound_file = "end_music.wav"
+alert_sound_file = "alert.wav"
 
 # グローバル領域で各種変数を定義
 
@@ -36,7 +37,7 @@ height = int(mh / scale)
 width = int(mw / scale)
 
 #緑色にマスクするための画面
-mask = np.full((height, width, 3), (70, 110, 0), dtype=np.uint8)
+green_mask = np.full((height, width, 3), (70, 110, 0), dtype=np.uint8)
 #赤色にマスクするための画面
 danger_mask = np.full((height, width, 3), (70, 110, 0), dtype=np.uint8)
 
@@ -76,6 +77,7 @@ def stop_roop_sound():
         roop_sound_play_obj.stop()
 
 
+
 def distance(p1, p2):
     return ((p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2) ** 0.5
 
@@ -96,7 +98,8 @@ class FaceThread(threading.Thread):
 
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-            tmp = cv2.addWeighted(frame, 0.8, mask, 0.9, 0).copy()
+            # tmp = cv2.addWeighted(frame, 0.8, mask, 0.9, 0).copy()
+            tmp = frame.copy
 
             global rec_mode, arg, speed
 
@@ -212,7 +215,6 @@ class FaceThread(threading.Thread):
                     self.strongness = int(10 ** ( (sum(strongness_list) * 10/ (self.alpha * len(strongness_list)))))
                 
                 if self.strongness >= 530000:
-                    tmp
                 word = "complete!".upper()
                 img_pil = Image.fromarray(tmp)
                 draw = ImageDraw.Draw(img_pil)
