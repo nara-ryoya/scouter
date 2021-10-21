@@ -180,11 +180,14 @@ class FaceThread(threading.Thread):
                             #     cv2.putText(tmp, str(i), (x + 2, y - 2), cv2.FONT_HERSHEY_SIMPLEX, 0.3, (0, 255, 0), 1)
                             
                             if len(face_landmarks) != 0:
-                                cv2.ellipse(tmp, (center_x, center_y), (radius, radius), angle=0, startAngle=arg, endAngle=40+arg, color=textColor, thickness=7)
-                                # cv2.ellipse(tmp, (center_x, center_y), (radius//2, radius//2), angle=120, startAngle=arg, endAngle=arg+90, color=textColor, thickness=2)
-                                # cv2.ellipse(tmp, (center_x, center_y), (radius+1, radius+1), angle=45, startAngle=arg//2, endAngle=120+arg//2, color=textColor, thickness=4)
+                                cv2.ellipse(tmp, (center_x, center_y), (radius, radius), angle=0, startAngle=arg, endAngle=40+arg, color=textColor, thickness=4)
+                                cv2.ellipse(tmp, (center_x, center_y), (radius//2, radius//2), angle=30, startAngle=arg, endAngle=arg+240, color=textColor, thickness=2)
+                                cv2.ellipse(tmp, (center_x, center_y), (radius+10, radius+10), angle=45, startAngle=arg//2, endAngle=300+arg//2, color=textColor, thickness=3)
+                                cv2.ellipse(tmp, (center_x, center_y), (radius//3, radius//3), angle=190, startAngle=arg*1.5, endAngle=arg+240, color=textColor, thickness=1)
+                                cv2.ellipse(tmp, (center_x, center_y), (radius+20, radius+20), angle=120, startAngle=arg, endAngle=300+arg//2, color=textColor, thickness=1)
                                 # cv2.ellipse(tmp, (center_x, center_y), (radius-10, radius-10), angle=290, startAngle=arg, endAngle=70+arg, color=textColor, thickness=7)
-                                # cv2.ellipse(tmp, (center_x, center_y), (radius+3, radius+3), angle=90, startAngle=arg, endAngle=5+arg, color=textColor, thickness=10)
+                                cv2.ellipse(tmp, (center_x, center_y), (radius+3, radius+3), angle=90, startAngle=arg, endAngle=5+arg, color=textColor, thickness=7)
+
 
                                 eye_right_w = distance(face_landmarks[36], face_landmarks[39])
                                 eye_right_h =  (distance(face_landmarks[37], face_landmarks[41]) + distance(face_landmarks[38], face_landmarks[40])) / 2
