@@ -9,7 +9,7 @@ import time
 import signal
 import random
 import math
-import subprocess
+import subprocess, sys
 
 import simpleaudio
 
@@ -24,7 +24,7 @@ alert_sound_file = "alert_bomb.wav"
 # グローバル領域で各種変数を定義
 
 #カメラのキャプチャ
-cap = cv2.VideoCapture(1)
+cap = cv2.VideoCapture(0)
 if (not cap.isOpened()):
     print("cannot open the camera")
     exit()
@@ -56,6 +56,8 @@ rec_mode = False #rec_mode=Trueのときは描画を行う
 arg = 0 #arg < 360のとき顔認識を行い、arg<540のとき描画を行う
 is_roop_sound_played = False #計測中の効果音を流すかどうかを制御するためのbool変数
 isDanger = False
+isAlertSoundFinished = False
+counter_after_danger = 0#dangerの文字を点滅させるための変数
 
 strongness_list = [0] #目の開き具合、口の下がり具合で判定する
 
@@ -68,6 +70,9 @@ alert_sound_obj = simpleaudio.WaveObject.from_wave_file(alert_sound_file)
 roop_sound_play_obj = roop_sound_obj.play()
 roop_sound_play_obj.stop()
 
+alert_sound_play_obj = alert_sound_obj.play()
+alert_sound_play_obj.stop()
+
 def roop_sound():
     global roop_sound_play_obj
     is_roop_sound_played = True
@@ -78,6 +83,11 @@ def stop_roop_sound():
     global roop_sound_play_obj
     if roop_sound_play_obj.is_playing():
         roop_sound_play_obj.stop()
+
+def alert_sound():
+    global alert_sound_play_obj, loop_flg
+    alert_sound_play_obj = alert_sound_obj.play()
+
 
     
 
@@ -96,6 +106,7 @@ class FaceThread(threading.Thread):
             self.speed = 10
             self.alpha = 10000.0
             self.beta = 1.0
+            self.theta = 1
 
 	def run(self):
             frame = self._frame
@@ -105,7 +116,7 @@ class FaceThread(threading.Thread):
             # tmp = cv2.addWeighted(frame, 0.8, mask, 0.9, 0).copy()
             tmp = frame
 
-            global rec_mode, arg, speed, isDanger
+            global rec_mode, arg, speed, isDanger, alert_sound_play_obj, counter_after_danger
 
             textColor = (0, 230, 230)
 
@@ -211,38 +222,42 @@ class FaceThread(threading.Thread):
             
                             
             else:
-                if arg - self.speed < 360:
-                    if isDanger:
-                        alert_sound_obj.play()
-                    else:
-                        end_sound_obj.play()
-                    
-                stop_roop_sound()
                 if self.strongness == -1:
                     self.strongness = int(10 ** ( (sum(strongness_list) * 10/ (self.alpha * len(strongness_list)))))
-                
-                if self.strongness >= 530000:
+                if arg - self.speed < 360:
+                    if self.strongness < self.theta:
+                        end_sound_obj.play()
+                    else:
+                        alert_sound_play_obj = alert_sound_obj.play()
+                if self.strongness >= self.theta:
                     isDanger = True
-                word = "complete!".upper()
+                stop_roop_sound()
+                word = "complete".upper()
+                
+                if isDanger:
+                    word = "danger".upper()
+                    counter_after_danger += 1
+                
                 img_pil = Image.fromarray(tmp)
                 draw = ImageDraw.Draw(img_pil)
                 x = width//2 - (font.getsize(word)[0] // 2)
                 y = height//2 - int(self.fontSize)
                 y = max(y, 0)
-                draw.text((x, y), word, font = font, fill = textColor)
+                if not (isDanger and (counter_after_danger // 10) % 2 == 1):
+                    draw.text((x, y), word, font = font, fill = textColor)
 
                 x = width//2 - (font.getsize(str(self.strongness))[0] // 2)
                 y +=  int(self.fontSize * 1.2)
-                draw.text((x, y), str(self.strongness), font = font, fill = textColor)
+                if not (isDanger and (counter_after_danger // 10) % 2 == 1):
+                    draw.text((x, y), str(self.strongness), font = font, fill = textColor)
                 tmp = np.array(img_pil)
 
                 arg += self.speed // 5
 
-
-            if isDanger:
-                tmp = cv2.addWeighted(tmp, 0.8, danger_mask, 0.9, 0)
-            else:
+            if not isDanger:
                 tmp = cv2.addWeighted(tmp, 0.8, mask, 0.9, 0)
+            else:
+                tmp = cv2.addWeighted(tmp, 0.8, danger_mask, 0.9, 0)
             global res, catched_frame
             res = tmp
             catched_frame = tmp
@@ -251,19 +266,23 @@ class FaceThread(threading.Thread):
 
 def main():
 
-    global rec_mode, catched_frame
+    global rec_mode, catched_frame, alert_sound_play_obj
     while loop_flg:
         global arg, strongness_list
-        if arg >= 540: #argが540になったら計測中の画面を消す
+        if (not isDanger) and arg >= 540: #argが540になったら計測中の画面を消す
             rec_mode = False
             arg = 0
             strongness_list = [0]
+        
         ret, frame = cap.read()
         if not ret:
             continue
-        if(threading.activeCount() == 1):#メインスレッドしか動いていなかった場合は顔検出のスレッドを動かすようにする
+        if (threading.activeCount() == 1):#メインスレッドしか動いていなかった場合は顔検出のスレッドを動かすようにする
             th = FaceThread(frame)
             th.start()
+        
+        if (isDanger) and (not alert_sound_play_obj.is_playing()):
+            break
         
         if rec_mode and threading.activeCount() == 2 and not roop_sound_play_obj.is_playing() and arg < 360:
             #メインスレッドが動いていて、顔検出モードになっていて、さらにroop_soundが流れていない場合、roop_soundのスレッドを立てる
