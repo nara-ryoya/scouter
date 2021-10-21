@@ -19,12 +19,11 @@ face_part_data = "shape_predictor_68_face_landmarks.dat"
 font_path = "DSEG7Modern-Light.ttf"
 roop_sound_file = "roop_music.wav"
 end_sound_file = "end_music.wav"
-alert_sound_file = "alert.wav"
 
 # グローバル領域で各種変数を定義
 
 #カメラのキャプチャ
-cap = cv2.VideoCapture(0)
+cap = cv2.VideoCapture(1)
 if (not cap.isOpened()):
     print("cannot open the camera")
     exit()
@@ -36,10 +35,11 @@ mw = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
 height = int(mh / scale)
 width = int(mw / scale)
 
+
 #緑色にマスクするための画面
-green_mask = np.full((height, width, 3), (70, 110, 0), dtype=np.uint8)
+mask = np.full((height, width, 3), (70, 110, 0), dtype=np.uint8)
 #赤色にマスクするための画面
-danger_mask = np.full((height, width, 3), (70, 110, 0), dtype=np.uint8)
+danger_mask = np.full((height, width, 3), (0, 0, 200), dtype=np.uint8)
 
 #cascade分類器(顔の判定)
 cascade = cv2.CascadeClassifier(cascadeFile)
@@ -54,6 +54,7 @@ loop_flg = True #loopを続けるかどうかを制御するためのbool変数
 rec_mode = False #rec_mode=Trueのときは描画を行う
 arg = 0 #arg < 360のとき顔認識を行い、arg<540のとき描画を行う
 is_roop_sound_played = False #計測中の効果音を流すかどうかを制御するためのbool変数
+isDanger = False
 
 strongness_list = [0] #目の開き具合、口の下がり具合で判定する
 
@@ -77,7 +78,6 @@ def stop_roop_sound():
         roop_sound_play_obj.stop()
 
 
-
 def distance(p1, p2):
     return ((p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2) ** 0.5
 
@@ -99,9 +99,9 @@ class FaceThread(threading.Thread):
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
             # tmp = cv2.addWeighted(frame, 0.8, mask, 0.9, 0).copy()
-            tmp = frame.copy
+            tmp = frame
 
-            global rec_mode, arg, speed
+            global rec_mode, arg, speed, isDanger
 
             textColor = (0, 230, 230)
 
@@ -215,6 +215,7 @@ class FaceThread(threading.Thread):
                     self.strongness = int(10 ** ( (sum(strongness_list) * 10/ (self.alpha * len(strongness_list)))))
                 
                 if self.strongness >= 530000:
+                    isDanger = True
                 word = "complete!".upper()
                 img_pil = Image.fromarray(tmp)
                 draw = ImageDraw.Draw(img_pil)
@@ -231,7 +232,11 @@ class FaceThread(threading.Thread):
                 arg += self.speed // 5
 
 
-            
+            if isDanger:
+                print("danger")
+                tmp = cv2.addWeighted(tmp, 0.8, danger_mask, 0.9, 0)
+            else:
+                tmp = cv2.addWeighted(tmp, 0.8, mask, 0.9, 0)
             global res, catched_frame
             res = tmp
             catched_frame = tmp
@@ -241,40 +246,40 @@ class FaceThread(threading.Thread):
 def main():
 
     global rec_mode, catched_frame
-
     while loop_flg:
-        rec_pre_mode = rec_mode
         global arg, strongness_list
-        if arg >= 540:
+        if arg >= 540: #argが540になったら計測中の画面を消す
             rec_mode = False
             arg = 0
             strongness_list = [0]
         ret, frame = cap.read()
         if not ret:
             continue
-        if(threading.activeCount() == 1):
+        if(threading.activeCount() == 1):#メインスレッドしか動いていなかった場合は顔検出のスレッドを動かすようにする
             th = FaceThread(frame)
             th.start()
         
         if rec_mode and threading.activeCount() == 2 and not roop_sound_play_obj.is_playing() and arg < 360:
+            #メインスレッドが動いていて、顔検出モードになっていて、さらにroop_soundが流れていない場合、roop_soundのスレッドを立てる
             roop_sound_thread = threading.Thread(target=roop_sound)
-            roop_sound_thread.setDaemon(True)
+            roop_sound_thread.setDaemon(True)#メインスレッド終了時に同時に終了するようにデーモン化
             roop_sound_thread.start()
-
+        
+        #'q'が押されたときに終了するようにする
         k = cv2.waitKey(10)
         if k == 27 or k == ord('q'):
             break
 
+        #'r'が押されたときに戦闘力を開始するようにする
         if k == ord('r'):
             rec_mode = not rec_mode
             if (rec_mode):
                 arg = 0
         
-        if (rec_mode):
-            cv2.imshow("scouter", catched_frame)
-        else:
+        #顔検出モードが音のときは、
+        if not (rec_mode):
             stop_roop_sound()
-            cv2.imshow("scouter", res); 
+        cv2.imshow("scouter", catched_frame)
 
     cap.release()
 
