@@ -19,7 +19,7 @@ face_part_data = "shape_predictor_68_face_landmarks.dat"
 font_path = "DSEG7Modern-Light.ttf"
 roop_sound_file = "roop_music.wav"
 end_sound_file = "end_music.wav"
-alert_sound_file = "alert_bomb.wav"
+alert_sound_file = "alert_bomb_big.wav"
 
 # グローバル領域で各種変数を定義
 
@@ -54,12 +54,10 @@ catched_frame = res
 loop_flg = True #loopを続けるかどうかを制御するためのbool変数
 rec_mode = False #rec_mode=Trueのときは描画を行う
 arg = 0 #arg < 360のとき顔認識を行い、arg<540のとき描画を行う
-is_roop_sound_played = False #計測中の効果音を流すかどうかを制御するためのbool変数
 isDanger = False
-isAlertSoundFinished = False
 counter_after_danger = 0#dangerの文字を点滅させるための変数
-
 strongness_list = [0] #目の開き具合、口の下がり具合で判定する
+recorded_strongness = "------"
 
 #効果音のオブジェクト
 roop_sound_obj = simpleaudio.WaveObject.from_wave_file(roop_sound_file)
@@ -75,9 +73,7 @@ alert_sound_play_obj.stop()
 
 def roop_sound():
     global roop_sound_play_obj
-    is_roop_sound_played = True
     roop_sound_play_obj = roop_sound_obj.play()
-    is_roop_sound_played = False
 
 def stop_roop_sound():
     global roop_sound_play_obj
@@ -88,14 +84,11 @@ def alert_sound():
     global alert_sound_play_obj, loop_flg
     alert_sound_play_obj = alert_sound_obj.play()
 
-
-    
-
-
 def distance(p1, p2):
     return ((p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2) ** 0.5
 
 
+#顔検出と描画を行うクラス
 class FaceThread(threading.Thread):
 	def __init__(self, frame):
             super(FaceThread, self).__init__()
@@ -106,21 +99,21 @@ class FaceThread(threading.Thread):
             self.speed = 10
             self.alpha = 10000.0
             self.beta = 1.0
-            self.theta = 1
+            self.theta = 530000
 
 	def run(self):
             frame = self._frame
 
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-            # tmp = cv2.addWeighted(frame, 0.8, mask, 0.9, 0).copy()
             tmp = frame
 
-            global rec_mode, arg, speed, isDanger, alert_sound_play_obj, counter_after_danger
+            global rec_mode, arg, speed, isDanger, alert_sound_play_obj, counter_after_danger, recorded_strongness
 
             textColor = (0, 230, 230)
 
             font = ImageFont.FreeTypeFont(font_path, self.fontSize)
+            small_font = ImageFont.FreeTypeFont(font_path, self.fontSize // 2)
 
             
             if arg < 360:
@@ -188,6 +181,11 @@ class FaceThread(threading.Thread):
                             
                             if len(face_landmarks) != 0:
                                 cv2.ellipse(tmp, (center_x, center_y), (radius, radius), angle=0, startAngle=arg, endAngle=40+arg, color=textColor, thickness=7)
+                                # cv2.ellipse(tmp, (center_x, center_y), (radius//2, radius//2), angle=120, startAngle=arg, endAngle=arg+90, color=textColor, thickness=2)
+                                # cv2.ellipse(tmp, (center_x, center_y), (radius+1, radius+1), angle=45, startAngle=arg//2, endAngle=120+arg//2, color=textColor, thickness=4)
+                                # cv2.ellipse(tmp, (center_x, center_y), (radius-10, radius-10), angle=290, startAngle=arg, endAngle=70+arg, color=textColor, thickness=7)
+                                # cv2.ellipse(tmp, (center_x, center_y), (radius+3, radius+3), angle=90, startAngle=arg, endAngle=5+arg, color=textColor, thickness=10)
+
                                 eye_right_w = distance(face_landmarks[36], face_landmarks[39])
                                 eye_right_h =  (distance(face_landmarks[37], face_landmarks[41]) + distance(face_landmarks[38], face_landmarks[40])) / 2
                                 eye_left_w = distance(face_landmarks[42], face_landmarks[44])
@@ -233,7 +231,6 @@ class FaceThread(threading.Thread):
                     isDanger = True
                 stop_roop_sound()
                 word = "complete".upper()
-                
                 if isDanger:
                     word = "danger".upper()
                     counter_after_danger += 1
@@ -254,6 +251,17 @@ class FaceThread(threading.Thread):
 
                 arg += self.speed // 5
 
+            if self.strongness != -1 and arg >= 360:
+                recorded_strongness = str(self.strongness)
+            left_upper_text = f"strongness:{recorded_strongness}"
+            img_pil = Image.fromarray(tmp)
+            draw = ImageDraw.Draw(img_pil)
+            x = width//30
+            y = height//8 - int(self.fontSize//2)
+            y = max(y, 0)
+            draw.text((x, y), left_upper_text, font=small_font, fill=textColor)
+            tmp = np.array(img_pil)
+
             if not isDanger:
                 tmp = cv2.addWeighted(tmp, 0.8, mask, 0.9, 0)
             else:
@@ -265,8 +273,8 @@ class FaceThread(threading.Thread):
 
 
 def main():
-
     global rec_mode, catched_frame, alert_sound_play_obj
+    # cv2.namedWindow("scouter", cv2.WINDOW_NORMAL)
     while loop_flg:
         global arg, strongness_list
         if (not isDanger) and arg >= 540: #argが540になったら計測中の画面を消す
@@ -281,7 +289,7 @@ def main():
             th = FaceThread(frame)
             th.start()
         
-        if (isDanger) and (not alert_sound_play_obj.is_playing()):
+        if (isDanger) and (not alert_sound_play_obj.is_playing()): #アラーム音がなり終わっていて、かつ危険状態であるとき
             break
         
         if rec_mode and threading.activeCount() == 2 and not roop_sound_play_obj.is_playing() and arg < 360:
@@ -304,7 +312,7 @@ def main():
         #顔検出モードが音のときは、
         if not (rec_mode):
             stop_roop_sound()
-        cv2.imshow("scouter", catched_frame)
+        cv2.imshow("scouter", cv2.resize(catched_frame, (width*2, height*2), interpolation=cv2.INTER_CUBIC))
 
     cap.release()
 
