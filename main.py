@@ -19,6 +19,7 @@ face_part_data = "shape_predictor_68_face_landmarks.dat"
 font_path = "DSEG7Modern-Light.ttf"
 roop_sound_file = "roop_music.wav"
 end_sound_file = "end_music.wav"
+alert_sound_file = "alert_bomb.wav"
 
 # グローバル領域で各種変数を定義
 
@@ -61,6 +62,7 @@ strongness_list = [0] #目の開き具合、口の下がり具合で判定する
 #効果音のオブジェクト
 roop_sound_obj = simpleaudio.WaveObject.from_wave_file(roop_sound_file)
 end_sound_obj = simpleaudio.WaveObject.from_wave_file(end_sound_file)
+alert_sound_obj = simpleaudio.WaveObject.from_wave_file(alert_sound_file)
 
 #計測中の効果音の再生オブジェクト、すべての関数から止められるようにグローバル領域で定義
 roop_sound_play_obj = roop_sound_obj.play()
@@ -76,6 +78,8 @@ def stop_roop_sound():
     global roop_sound_play_obj
     if roop_sound_play_obj.is_playing():
         roop_sound_play_obj.stop()
+
+    
 
 
 def distance(p1, p2):
@@ -208,7 +212,10 @@ class FaceThread(threading.Thread):
                             
             else:
                 if arg - self.speed < 360:
-                    end_sound_obj.play()
+                    if isDanger:
+                        alert_sound_obj.play()
+                    else:
+                        end_sound_obj.play()
                     
                 stop_roop_sound()
                 if self.strongness == -1:
@@ -233,7 +240,6 @@ class FaceThread(threading.Thread):
 
 
             if isDanger:
-                print("danger")
                 tmp = cv2.addWeighted(tmp, 0.8, danger_mask, 0.9, 0)
             else:
                 tmp = cv2.addWeighted(tmp, 0.8, mask, 0.9, 0)
