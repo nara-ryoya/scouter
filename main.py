@@ -10,8 +10,11 @@ import signal
 import random
 import math
 import subprocess, sys
+import numpy
 
 import simpleaudio
+
+from functions import calc_strongness
 
 #諸々のファイル
 cascadeFile = 'haarcascade_frontalface_alt2.xml'
@@ -56,7 +59,7 @@ rec_mode = False #rec_mode=Trueのときは描画を行う
 arg = 0 #arg < 360のとき顔認識を行い、arg<540のとき描画を行う
 isDanger = False
 counter_after_danger = 0#dangerの文字を点滅させるための変数
-strongness_list = [0] #目の開き具合、口の下がり具合で判定する
+strongness_list = [] #目の開き具合、口の下がり具合で判定する
 recorded_strongness = "------"
 
 #効果音のオブジェクト
@@ -186,7 +189,7 @@ class FaceThread(threading.Thread):
                                 cv2.ellipse(tmp, (center_x, center_y), (radius//3, radius//3), angle=190, startAngle=arg*1.5, endAngle=arg+240, color=textColor, thickness=1)
                                 cv2.ellipse(tmp, (center_x, center_y), (radius+20, radius+20), angle=120, startAngle=arg, endAngle=300+arg//2, color=textColor, thickness=1)
                                 # cv2.ellipse(tmp, (center_x, center_y), (radius-10, radius-10), angle=290, startAngle=arg, endAngle=70+arg, color=textColor, thickness=7)
-                                cv2.ellipse(tmp, (center_x, center_y), (radius+3, radius+3), angle=90, startAngle=arg, endAngle=5+arg, color=textColor, thickness=7)
+                                cv2.ellipse(tmp, (center_x, center_y), (radius+3, radius+3), angle=90, startAngle=arg, endAngle=5+arg, color=textColor, thickness=7)    
 
 
                                 eye_right_w = distance(face_landmarks[36], face_landmarks[39])
@@ -195,17 +198,27 @@ class FaceThread(threading.Thread):
                                 eye_left_h = (distance(face_landmarks[43], face_landmarks[47]) + distance(face_landmarks[44], face_landmarks[46])) // 2
                                 eye_right_ratio = eye_right_h / eye_right_w
                                 eye_left_ratio = eye_left_h / eye_left_w
-                                eye_ratio = self.alpha * (eye_left_ratio + eye_right_ratio) / 2
+                                eye_ratio = (eye_left_ratio + eye_right_ratio) / 2
 
                                 mouth_w = distance(face_landmarks[48], face_landmarks[54])
                                 mouth_h = (face_landmarks[51][1] + face_landmarks[57][1] - face_landmarks[48][1] - face_landmarks[54][1]) / 2
-                                mouth_ratio = self.alpha * mouth_h / mouth_w
+                                mouth_ratio =  mouth_h / mouth_w
+                            
+                                left_eyebrow_vector = np.array(face_landmarks[17]) - np.array(face_landmarks[21])
+                                right_eyebrow_vector = np.array(face_landmarks[26]) - np.array(face_landmarks[22])
+                                nose_vector = np.array(face_landmarks[30]) - np.array(face_landmarks[27])
+                                                
+                                left_eyebrow_theta = np.sum(left_eyebrow_vector * nose_vector) /(np.linalg.norm(left_eyebrow_vector) * np.linalg.norm(nose_vector))
+                                right_eyebrow_theta = np.sum(right_eyebrow_vector * nose_vector) /(np.linalg.norm(right_eyebrow_vector) * np.linalg.norm(nose_vector))
+                                
+                                theta = left_eyebrow_theta + right_eyebrow_theta
+                                theta /= 2
 
-                                strongness_list.append(int(mouth_ratio + eye_ratio))
+                                strongness_list.append([eye_ratio, mouth_ratio, theta])
                                 
 
                                 word = "calculating...".upper()
-                                self.strongness = random.randint(0, 999999)
+                                tmp_strongness = random.randint(0, 999999)
 
                                 img_pil = Image.fromarray(tmp)
                                 draw = ImageDraw.Draw(img_pil)
@@ -214,17 +227,33 @@ class FaceThread(threading.Thread):
                                 y = max(y, 0)
                                 draw.text((x, y), word, font = font, fill = textColor)
 
-                                x = width // 2 - (font.getsize(str(self.strongness))[0] // 2)
+                                x = width // 2 - (font.getsize(str(tmp_strongness))[0] // 2)
                                 y +=  int(self.fontSize * 1.2)
-                                draw.text((x, y), str(self.strongness), font = font, fill = textColor)
+                                draw.text((x, y), str(tmp_strongness), font = font, fill = textColor)
                                 tmp = np.array(img_pil)
 
                                 arg += self.speed
+                else:
+                    if rec_mode:
+                        word = "no person detected"
+                        if len(faces) != 0:
+                            word = "muitiple people detected"
+
+                        img_pil = Image.fromarray(tmp)
+                        draw = ImageDraw.Draw(img_pil)
+                        x = width//2 - (font.getsize(word)[0] // 2)
+                        y = height//2 - int(self.fontSize)
+                        y = max(y, 0)
+                        draw.text((x, y), word, font = font, fill = textColor)
+                        tmp = np.array(img_pil)
+
+
             
                             
             else:
                 if self.strongness == -1:
-                    self.strongness = int(10 ** ( (sum(strongness_list) * 10/ (self.alpha * len(strongness_list)))))
+                    # self.strongness = int(10 ** ( (sum(strongness_list) * 10/ (self.alpha * len(strongness_list)))))
+                    self.strongness = calc_strongness(strongness_list)
                 if arg - self.speed < 360:
                     if self.strongness < self.theta:
                         end_sound_obj.play()
@@ -283,7 +312,7 @@ def main():
         if (not isDanger) and arg >= 540: #argが540になったら計測中の画面を消す
             rec_mode = False
             arg = 0
-            strongness_list = [0]
+            strongness_list = []
         
         ret, frame = cap.read()
         if not ret:
